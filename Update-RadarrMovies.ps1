@@ -381,7 +381,7 @@ foreach ($Movie in $movieFilter)
             $FailedMovie | Add-Member -Type NoteProperty -Name RadarrPath -Value ('http://' + $radarrURL + ':' + $radarrPort + '/movie/' + $titleslug)
             #add to another array for reporting
             $FailedMovieReport += $FailedMovie
-            Break
+            #Break
         }
 
         start-sleep 3
