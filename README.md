@@ -17,3 +17,7 @@ This script is in a working progress. I plan on
  - change to use Radarr functions extensions to reduce main script
  - Generate nfo media file info using ffprobe
  - Store data to CliXML for faster processing.
+ 
+ 
+ ## prereqs
+ use powerextensions (https://github.com/PowerShellCrack/PowerExtensions)

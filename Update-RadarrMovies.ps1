@@ -33,27 +33,38 @@ function Test-IsISE {
     }
 }
 
-Function Convert-NumberToWord([string]$string){
-    $Value = $null
-    $string -match '\D+(\d+)' | Out-Null
-    
+Function Convert-NumberToWord([string]$string,[int]$digit,[switch]$PassTense){
+    If($digit){
+        $digit -match '(\d+)' | Out-Null
+    }
+    Else{
+        $string -match '\D+(\d+)' | Out-Null
+    }
+
     switch ($Matches[1]){
         "0" {[string]$toWord = 'Zero'}
-        "1" {[string]$toWord = 'One'}
-        "2" {[string]$toWord = 'Two'}
-        "3" {[string]$toWord = 'Three'}
-        "4" {[string]$toWord = 'Four'}
-        "5" {[string]$toWord = 'Five'}
-        "6" {[string]$toWord = 'Six'}
-        "7" {[string]$toWord = 'Seven'}
-        "8" {[string]$toWord = 'Eight'}
-        "9" {[string]$toWord = 'Nine'}
-        "10" {[string]$toWord = 'Ten'}
-        "13" {[string]$toWord = 'Eleven'}
-        "12" {[string]$toWord = 'Twelve'}
+        "1" {If($PassTense){[string]$toWord = 'First'}Else{[string]$toWord = 'One'}}
+        "2" {If($PassTense){[string]$toWord = 'Second'}Else{[string]$toWord = 'Two'}}
+        "3" {If($PassTense){[string]$toWord = 'Third'}Else{[string]$toWord = 'Three'}}
+        "4" {If($PassTense){[string]$toWord = 'Fouth'}Else{[string]$toWord = 'Four'}}
+        "5" {If($PassTense){[string]$toWord = 'Fifth'}Else{[string]$toWord = 'Five'}}
+        "6" {If($PassTense){[string]$toWord = 'Sixth'}Else{[string]$toWord = 'Six'}}
+        "7" {If($PassTense){[string]$toWord = 'Seventh'}Else{[string]$toWord = 'Seven'}}
+        "8" {If($PassTense){[string]$toWord = 'Eighth'}Else{[string]$toWord = 'Eight'}}
+        "9" {If($PassTense){[string]$toWord = 'Nineth'}Else{[string]$toWord = 'Nine'}}
+        "10" {If($PassTense){[string]$toWord = 'Tenth'}Else{[string]$toWord = 'Ten'}}
+        "11" {If($PassTense){[string]$toWord = 'Eleventh'}Else{[string]$toWord = 'Eleven'}}
+        "12" {If($PassTense){[string]$toWord = 'Twelveth'}Else{[string]$toWord = 'Twelve'}}
+        "13" {If($PassTense){[string]$toWord = 'Thirteenth'}Else{[string]$toWord = 'Thirteen'}}
+        default {[string]$toWord = $null}
     }
-    $Value = ($String) -replace $Matches[1],$toWord
-    If($Value -ne $String){Return $Value}
+    If($digit){
+        $Value = $toWord
+    }
+    Else{
+        $Value = ($String) -replace $Matches[1],$toWord
+    }
+    Return $Value
 }
 
 Function Convert-WordToNumber([string]$string){
@@ -72,11 +83,216 @@ Function Convert-WordToNumber([string]$string){
         'ten'   {[string]$toWord = '10'}
         'eleven'{[string]$toWord = '11'}
         'twelve'{[string]$toWord = '12'}
+        "thirteen" {[string]$toWord = '13'}
+        default {[string]$toWord = $null}
     }
 
-    $Value = ($String) -replace $Matches,$toWord
-    If($Value -ne $String){Return $Value}
+    $Value = ($String) -replace $Matches[0],$toWord
+    Return $Value
 }
+
+Function Search-MovieTitle{
+    [CmdletBinding(DefaultParameterSetName='Title')]
+    param (
+        [Parameter(ParameterSetName='Title', Mandatory=$true, ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $Title,
+
+        [Parameter(ParameterSetName='Title', ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true)]
+        [string[]]
+        $AlternateTitles,
+
+        [Parameter(ParameterSetName='Title', ValueFromPipeline=$true, ValueFromPipelineByPropertyName=$true)]
+        [int]
+        $Year,
+
+        [Parameter(Mandatory=$true)]
+        [string]
+        $IMDBApiKey,
+
+        [Parameter(Mandatory=$true)]
+        [string]
+        $TMDBApiKey,
+
+        [Parameter(Mandatory=$false)]
+        [switch]
+        $ReturnBoolean
+
+    )
+    Begin{
+        $IMDBMovieTitles = @()
+        $TMDBMovieTitles = @()
+        $IMDBMovieInfo = $null
+        $TMDBMovieInfo = $null
+        $NoSpecialIMDBTitles = $null
+        $NoSpecialTMDBTitles = $null
+
+        $ContinueToSearch = $true
+    }
+    Process{
+        #if a year was found within the name, query IMDB and TMDB for name and year for a better match
+        If($Year){
+            $ParamHash = @{Year = $Year}
+            $YearLabel = " with year [$Year]"
+        }
+
+        If($AlternateTitles){
+            $AlternateTitles = $AlternateTitles | Select -Unique
+        }
+
+        [int]$Count = 1
+
+        If($ContinueToSearch -and $Title){
+
+            Write-Host ("Search for movie title [{1}]{2} in IMDB..." -f $SearchCountlabel,$Title,$YearLabel) -ForegroundColor Gray -NoNewline
+            $IMDBMovieInfo = Get-ImdbTitle -Title $Title @ParamHash -Api $IMDBApiKey -ErrorAction SilentlyContinue
+            If($IMDBMovieInfo){Write-Host ("Found {0}" -f $IMDBMovieInfo.Count)}Else{Write-Host "Found 0"}
+        
+            Write-Host ("Search for movie title [{1}]{2} in TMDB..." -f $SearchCountlabel,$Title,$YearLabel) -ForegroundColor Gray -NoNewline
+            $TMDBMovieInfo = Find-TMDBItem -Type Movie -SearchAction ByType -Title $Title @ParamHash -ApiKey $TMDBApiKey -SelectFirst -ErrorAction SilentlyContinue
+            If($TMDBMovieInfo){Write-Host ("Found {0}" -f $TMDBMovieInfo.Count)}Else{Write-Host "Found 0"}
+        
+            $NoSpecialIMDBTitles = ($IMDBMovieInfo.Title -replace 'Ã©','e' -replace "[^{\p{L}\p{Nd}\'}]+", " ").Normalize("FormD") -replace '\p{M}'
+            $NoSpecialTMDBTitles = ($TMDBMovieInfo.Title -replace 'Ã©','e' -replace "[^{\p{L}\p{Nd}\'}]+", " ").Normalize("FormD") -replace '\p{M}'
+
+            If(!$NoSpecialIMDBTitles -or !$NoSpecialTMDBTitles){
+                Write-Host ("Movie information for [{0}]{1} is not available from IMDB or TMDB" -f $Title,$YearLabel) -ForegroundColor Red
+                $ContinueToSearch = $true
+                #$AddMovietoRadarr = $false
+            }
+            ElseIf($NoSpecialIMDBTitles -ne $NoSpecialTMDBTitles){
+                If(( (Convert-WordToNumber $NoSpecialIMDBTitles) -eq (Convert-WordToNumber $NoSpecialTMDBTitles) ) -or ( (Convert-NumberToWord $NoSpecialIMDBTitles) -eq (Convert-NumberToWord $NoSpecialTMDBTitles) )){
+                    Write-Host ("Movie information was matched from both IMDB [{0}] and TMDB [{1}]{2}" -f $NoSpecialIMDBTitles,$NoSpecialTMDBTitles,$YearLabel) -ForegroundColor Green
+                    $MatchedMovieTitle = $IMDBMovieInfo.Title
+                    $ContinueToSearch = $false
+                }
+                Else{
+                    Write-Host ("Movie information does not match from IMDB [{0}] and TMDB [{1}]{2}" -f $IMDBMovieInfo.Title,$TMDBMovieInfo.Title,$YearLabel) -ForegroundColor Red
+                    $ContinueToSearch = $true
+                }
+            }
+            Else{
+                Write-Host ("Movie information was matched from both IMDB [{0}] and TMDB [{1}]{2}" -f $NoSpecialIMDBTitles,$NoSpecialTMDBTitles,$YearLabel) -ForegroundColor Green
+                $MatchedMovieTitle = $IMDBMovieInfo.Title
+                $ContinueToSearch = $false
+            }
+        }
+
+        If($AlternateTitles){
+            Foreach ($AlternateTitle in $AlternateTitles){
+                
+                $SearchCountlabel = Convert-NumberToWord -digit $Count -PassTense
+
+                If($ContinueToSearch -and ($AlternateTitle -ne $Title) ){
+                    Write-Host ("{0} search for alternate movie title [{1}]{2} in IMDB..." -f $SearchCountlabel,$AlternateTitle,$YearLabel) -ForegroundColor Gray -NoNewline
+                    $IMDBMovieInfo = Get-ImdbTitle -Title $AlternateTitle @ParamHash -Api $IMDBApiKey -ErrorAction SilentlyContinue
+                    If($IMDBMovieInfo){Write-Host ("Found {0}" -f $IMDBMovieInfo.Count)}Else{Write-Host "Found 0"}
+                    If(!$Year){$Year = $IMDBMovieInfo.Year}
+
+                    Write-Host ("{0} search for alternate movie title [{1}]{2} in TMDB..." -f $SearchCountlabel,$AlternateTitle,$YearLabel) -ForegroundColor Gray -NoNewline
+                    $TMDBMovieInfo = Find-TMDBItem -Type Movie -SearchAction ByType -Title $AlternateTitle @ParamHash -ApiKey $TMDBApiKey -SelectFirst -ErrorAction SilentlyContinue
+                    If($TMDBMovieInfo){Write-Host ("Found {0}" -f $TMDBMovieInfo.Count)}Else{Write-Host "Found 0"}
+                    If(!$Year){$Year = (Get-Date $TMDBMovieInfo.ReleaseDate -Format yyyy -ErrorAction SilentlyContinue)}
+
+                    $NoSpecialIMDBTitles = ($IMDBMovieInfo.Title -replace 'Ã©','e' -replace "[^{\p{L}\p{Nd}\'}]+", " ").Normalize("FormD") -replace '\p{M}'
+                    $NoSpecialTMDBTitles = ($TMDBMovieInfo.Title -replace 'Ã©','e' -replace "[^{\p{L}\p{Nd}\'}]+", " ").Normalize("FormD") -replace '\p{M}'
+
+                    If(!$NoSpecialIMDBTitles -or !$NoSpecialTMDBTitles){
+                        Write-Host ("Movie information for [{0}]{1} is not available from IMDB or TMDB" -f $AlternateTitle,$YearLabel) -ForegroundColor Red
+                        $ContinueToSearch = $true
+                    }
+                    ElseIf($NoSpecialIMDBTitles -ne $NoSpecialTMDBTitles){
+                        If(( (Convert-WordToNumber $NoSpecialIMDBTitles) -eq (Convert-WordToNumber $NoSpecialTMDBTitles) ) -or ( (Convert-NumberToWord $NoSpecialIMDBTitles) -eq (Convert-NumberToWord $NoSpecialTMDBTitles) )){
+                            Write-Host ("Movie information was matched from both IMDB [{0}] and TMDB [{1}]{2}" -f $NoSpecialIMDBTitles,$NoSpecialTMDBTitles,$YearLabel) -ForegroundColor Green
+                            $MatchedMovieTitle = $IMDBMovieInfo.Title
+                            $ContinueToSearch = $false
+                            Continue
+                        }
+                        Else{
+                            Write-Host ("Movie information does not match from IMDB [{0}] and TMDB [{1}]{2}" -f $IMDBMovieInfo.Title,$TMDBMovieInfo.Title,$YearLabel) -ForegroundColor Red
+                            $ContinueToSearch = $true
+                        }
+                    }
+                    Else{
+                        Write-Host ("Movie information was matched from both IMDB [{0}] and TMDB [{1}]{2}" -f $NoSpecialIMDBTitles,$NoSpecialTMDBTitles,$YearLabel) -ForegroundColor Green
+                        $MatchedMovieTitle = $IMDBMovieInfo.Title
+                        $ContinueToSearch = $false
+                        Continue
+                    }
+                }
+            }
+
+            $Count = $Count + 1
+        } #end alternate title search
+
+    }
+    End{
+        #if a title was found and boolean return not specified
+        If(!$ReturnBoolean -and $MatchedMovieTitle){
+            $returnObjects = @()
+
+            $returnObject = New-Object System.Object
+            $returnObject | Add-Member -Type NoteProperty -Name Title -Value $IMDBMovieInfo.title
+            $returnObject | Add-Member -Type NoteProperty -Name Year -Value $IMDBMovieInfo.year
+            $returnObject | Add-Member -Type NoteProperty -Name Rated -Value $IMDBMovieInfo.Rated
+            $returnObject | Add-Member -Type NoteProperty -Name Released -Value $IMDBMovieInfo.Released
+            $returnObject | Add-Member -Type NoteProperty -Name Runtime -Value $IMDBMovieInfo.Runtime
+            $returnObject | Add-Member -Type NoteProperty -Name Genre -Value $IMDBMovieInfo.Genre
+            $returnObject | Add-Member -Type NoteProperty -Name Director -Value $IMDBMovieInfo.Director
+            $returnObject | Add-Member -Type NoteProperty -Name Writer  -Value $IMDBMovieInfo.Writer
+            $returnObject | Add-Member -Type NoteProperty -Name Actors -Value $IMDBMovieInfo.Actors
+            $returnObject | Add-Member -Type NoteProperty -Name Plot -Value $IMDBMovieInfo.Plot
+            $returnObject | Add-Member -Type NoteProperty -Name Language -Value $IMDBMovieInfo.Language
+            $returnObject | Add-Member -Type NoteProperty -Name Country -Value $IMDBMovieInfo.Country 
+            $returnObject | Add-Member -Type NoteProperty -Name Awards -Value $IMDBMovieInfo.Awards
+            $returnObject | Add-Member -Type NoteProperty -Name Poster  -Value $IMDBMovieInfo.Poster
+            $returnObject | Add-Member -Type NoteProperty -Name Ratings  -Value $IMDBMovieInfo.Ratings
+            $returnObject | Add-Member -Type NoteProperty -Name Metascore -Value $IMDBMovieInfo.Metascore
+            $returnObject | Add-Member -Type NoteProperty -Name imdbRating -Value $IMDBMovieInfo.imdbRating 
+            $returnObject | Add-Member -Type NoteProperty -Name imdbVotes  -Value $IMDBMovieInfo.imdbVotes
+            $returnObject | Add-Member -Type NoteProperty -Name imdbID  -Value $IMDBMovieInfo.imdbID
+            $returnObject | Add-Member -Type NoteProperty -Name Type  -Value $IMDBMovieInfo.Type
+            $returnObject | Add-Member -Type NoteProperty -Name DVD  -Value $IMDBMovieInfo.DVD
+            $returnObject | Add-Member -Type NoteProperty -Name BoxOffice  -Value $IMDBMovieInfo.BoxOffice
+            $returnObject | Add-Member -Type NoteProperty -Name Production -Value $IMDBMovieInfo.Production
+            $returnObject | Add-Member -Type NoteProperty -Name Website  -Value $IMDBMovieInfo.Website
+            
+            $returnObject | Add-Member -Type NoteProperty -Name TotalVotes -Value $TMDBMovieInfo.TotalVotes
+            $returnObject | Add-Member -Type NoteProperty -Name tmdbID -Value $TMDBMovieInfo.tmdbID
+            $returnObject | Add-Member -Type NoteProperty -Name Video -Value $TMDBMovieInfo.Video
+            $returnObject | Add-Member -Type NoteProperty -Name VoteAverage -Value $TMDBMovieInfo.VoteAverage
+            #$returnObject | Add-Member -Type NoteProperty -Name Title -Value $TMDBMovieInfo.title
+            $returnObject | Add-Member -Type NoteProperty -Name Popularity -Value $TMDBMovieInfo.popularity
+            #$returnObject | Add-Member -Type NoteProperty -Name Poster -Value $TMDBMovieInfo.Poster
+            #$returnObject | Add-Member -Type NoteProperty -Name Language -Value $TMDBMovieInfo.Language
+            $returnObject | Add-Member -Type NoteProperty -Name OriginalTitle -Value $TMDBMovieInfo.OriginalTitle
+            $returnObject | Add-Member -Type NoteProperty -Name Genres -Value $TMDBMovieInfo.Genres
+            $returnObject | Add-Member -Type NoteProperty -Name Backdrop -Value $TMDBMovieInfo.Backdrop
+            $returnObject | Add-Member -Type NoteProperty -Name Adult -Value $TMDBMovieInfo.Adult
+            $returnObject | Add-Member -Type NoteProperty -Name Overview -Value $TMDBMovieInfo.overview
+            $returnObject | Add-Member -Type NoteProperty -Name ReleaseDate -Value $TMDBMovieInfo.ReleaseDate
+            $returnObjects += $returnObject
+
+            return $returnObjects
+        }
+
+        #if a title was found and boolean return WAS specified
+        ElseIf($ReturnBoolean -and $MatchedMovieTitle){
+            return $true
+        }
+
+        #if a title was NOT found and boolean return WAS specified
+        ElseIf($ReturnBoolean -and !$MatchedMovieTitle){
+            return $false
+        }
+
+        #all else return null
+        Else{
+            return $null
+        }
+    }
+}
+
 ##*===============================================
 ##* VARIABLE DECLARATION
 ##*===============================================
@@ -96,6 +312,7 @@ If(Test-IsISE){[string]$scriptPath = "D:\Data\Automation\Update-RadarrMovies.ps1
 [string]$StoredDataDir = Join-Path $scriptRoot -ChildPath 'StoredData'
 
 #Import Script extensions
+. "$ExtensionPath\SupportFunctions.ps1"
 . "$ExtensionPath\Logging.ps1"
 . "$ExtensionPath\ImdbMovieAPI.ps1"
 . "$ExtensionPath\TmdbAPI.ps1"
@@ -135,6 +352,7 @@ Else {
 
 # Update Data Configs
 [boolean]$StatsOnly = [boolean]::Parse($ScriptSettings.CheckStatusOnly)
+[boolean]$FindMissingOnly = [boolean]::Parse($ScriptSettings.FindMissingOnly)
 [boolean]$UpdateNfoData = [boolean]::Parse($ScriptSettings.UpdateNfoData)
 [boolean]$UpdateJustMovieSeries = [boolean]::Parse($ScriptSettings.UpdateMovieSeriesOnly)
 [int32]$UseRecentStoredDataDays = $ScriptSettings.UseRecentStoredDataDays
@@ -147,10 +365,12 @@ If($UseRecentStoredDataDays -gt 0){$UseLocalizedStoredData = $true}Else{$UseLoca
 $Global:UnmatchedMovieReport = @()
 $Global:ExistingMovieReport = @()
 $Global:WrongMovieReport = @()
-$Global:AddedMovieReport = @()
 $Global:NoMovieInfoReport = @()
 $Global:FailedMovieReport = @()
 
+$Global:UpdatedMovieReport = @()
+$Global:RemovedMovieReport = @()
+$Global:AddedMovieReport = @()
 
 #=======================================================
 # MAIN
@@ -167,24 +387,13 @@ If($scriptName){
 # good for testings instead of processing folders each time
 If( ($Global:AllMoviesGenres.count -eq 0) -or ($Global:RadarrMovies.count -eq 0)  ){
     #build list of movie genres from folder
-    Write-Host "Grabbing all movie Genre folders..." -NoNewline
+    Write-Host "Grabbing all movie Genre folders" -NoNewline
     $Global:AllMoviesGenres = Get-ChildItem $MoviesDir -ErrorAction SilentlyContinue | Where-Object {$_.PSIsContainer -eq $true}
-    Write-Host ("Found {0}" -f $AllMoviesGenres.Count)
+    Write-Host ("...Found {0}" -f $AllMoviesGenres.Count) -ForegroundColor Cyan
 
     #build radarr list
     Write-Host "Grabbing all movies in Radarr..." -NoNewline
-    $RadarrGetArgs = @{Headers = @{"X-Api-Key" = $radarrAPIkey}
-                    URI = "http://${radarrURL}:${radarrPort}/api/movie"
-                    Method = "Get"
-                }
-    Try{
-        $radarrWebRequest = Invoke-WebRequest @RadarrGetArgs -UseBasicParsing
-        $Global:RadarrMovies = $radarrWebRequest.Content | ConvertFrom-Json
-        Write-Host ("Found {0}" -f $Global:RadarrMovies.Count)
-    }
-    Catch{
-        Write-Host "Unable to connect to Radarr, error $($_.Exception.ErrorMessage)"
-    }
+    $Global:RadarrMovies = Get-AllRadarrMovies -Api $radarrAPIkey -AsObject
 }
 
 #get list of movie folders within the genre folders
@@ -194,19 +403,19 @@ Write-Host ("Found {0}" -f $AllMoviesFolders.Count)
 
 #update just the series section?
 If($UpdateJustMovieSeries){
-    Write-Host "Comparing all movie series on disk to what is in Radarr..." -NoNewline -ForegroundColor Cyan
+    Write-Host "Comparing all movie series on disk to what is in Radarr" -NoNewline
     #only get the movie sets located in collection folders
-    $movieFilter = $AllMoviesFolders | Where-Object {$_.FullName -match "Collection" -or $_.FullName -match "Anthology"} 
+    $movieFilter = $AllMoviesFolders | Where-Object {$_.FullName -match "Collection" -or $_.FullName -match "Anthology" -or $_.FullName -match "Screeners"} 
 }
 Else{
-    Write-Host "Comparing all movies on disk to what is in Radarr..." -NoNewline -ForegroundColor Cyan 
+    Write-Host "Comparing all movies on disk to what is in Radarr" -NoNewline
     #get list of movie folders within the genre folders
     #do not include collection folders
-    $movieFilter = ($AllMoviesFolders | Where-Object {$_.Name -notlike "*Collection*"} | Where-Object {$_.Name -notlike "*Anthology*"})
+    $movieFilter = ($AllMoviesFolders | Where-Object {$_.Name -notlike "*Collection*"} | Where-Object {$_.Name -notlike "*Anthology*"} | Where {$_.Name -notlike "*Screeners"} )
 }
 
-Write-Host ("Found {0}" -f $movieFilter.Count)
-Write-Host "=============================================" -ForegroundColor Cyan
+Write-Host ("...Found {0}" -f $movieFilter.Count) -ForegroundColor Cyan
+Write-Host "============================================="
 
 #If nfo file exists, compare nfo with movie to ensure its correct
 #build array based on info found
@@ -219,7 +428,8 @@ If($UpdateNfoData){
         }
         ElseIf(Compare-Object $MoviesFolder.Name $Global:MovieSeries.Name -IncludeEqual -passThru | Where-Object { $_.SideIndicator -eq '==' }){
             Write-Host ("Ignoring movie series folders: {0}" -f $MoviesFolder.Name) -ForegroundColor Gray
-        }Else{
+        }
+        Else{
             $NFOfileExist = Get-ChildItem $MoviesFolder.FullName -Filter *.nfo -Force -Recurse
             $yearfound = $MoviesFolder.Name -match ".?\((.*?)\).*"
             $year = $matches[1]
@@ -242,12 +452,24 @@ If($UpdateNfoData){
     }
 }
 
+#test movie
+#$movie = $movieFilter[1364]
 
 foreach ($Movie in $movieFilter)
 {
+    #clear values after each loop
+    $MovieInfo = @()
+    $SearchForMovie = $true
+    $AddMovietoRadarr = $false
+    $UpdateMovieinRadarr = $false
+    $UpdateMoviePathinRadarr = $false
+    $UpdateMovieTitleinRadarr = $false
+
     Write-Host "---------------------------------------" -ForegroundColor Gray
-    Write-Host ("Processing Movie [{0}]" -f $Movie.Name) -ForegroundColor Gray
-    #$yearfound = $Movie.Name -match ".?\((.*?)\).*"
+    Write-Host ("Processing Movie [{0}]" -f $Movie.Name) -ForegroundColor Cyan
+    
+    # BUILD SEARCHABLE TITLES
+    # ==============================
     If($Movie.Name -match ".?\((.*?)\).*"){
         #is the year numeric?
         If($matches[1] -match "^[\d\.]+$"){
@@ -266,406 +488,146 @@ foreach ($Movie in $movieFilter)
         $yearfound = $false
     }
 
-    #rename variable to use later
-    $MovieTitleCleaned = $MovieTitle
-
     #remove unsupported characters for easier search results
+    #replace the Ã© with e (pokemon titles)
+    $MovieTitleCleaned = $MovieTitle.replace('Ã©','e')
+    
     #normailze any special characters such as: å,ä,ö,Ã,Å,Ä,Ö,é
     $MovieTitleCleaned = $MovieTitleCleaned.Normalize("FormD") -replace '\p{M}'
     
-    #replace the Ã© with e (pokemon titles)
-    $MovieTitleCleaned = $MovieTitleCleaned.replace('Ã©','e')
-
     #remove double spaces
     $MovieTitleCleaned = $MovieTitleCleaned -replace'\s+', ' '
 
     #replace & with and
     $MovieTitleCleaned = $MovieTitleCleaned.replace('&','and')
 
-    #remove any special characters but keep apstraphe '
-    $MovieTitleNoSpecialChar = $MovieTitle -replace "[^{\p{L}\p{Nd}\'}]+", " "
+    #remove any special characters but keep apostraphe
+    $MovieTitleNoSpecialChar = $MovieTitleCleaned -replace "[^{\p{L}\p{Nd}\'}]+", " "
+
+    #remove all special characters even apostraphe
+    $MovieTitleAllSpecialChar = $MovieTitleNoSpecialChar -replace "'", ""
+
+    #remove all special characters and spaces
+    $MovieTitleNoSpecialSpaces = $MovieTitleCleaned -replace '[^\p{L}\p{Nd}]', ''
 
     #does the title have a number in it like: Daddy's Home 2
     $MovieTitleConvertedToNum = Convert-WordToNumber $MovieTitleCleaned
 
-    #does the title have a number in it like: Daddy's Home 2
+    #does the title have a number in it like: Two men
     $MovieTitleConvertedToChar = Convert-NumberToWord $MovieTitleCleaned
 
-    #if a year was found within the name, query IMDB and TMDB for name and year for a better match
-    If($yearfound)
-    {
-        #IMDB SEARCH....
-        #====================================
-        Write-Host ("Searching for movie [{0}] with year [{1}] in IMDB..." -f $MovieTitleCleaned,$year) -ForegroundColor Gray
-
-        #first check normal title against IMDB
-        $IMDBMovieInfo = Get-ImdbTitle -Title $MovieTitle -Year $year -Api $OMDBAPI -ErrorAction SilentlyContinue
-
-        #If no results try the title with no special charaters search against IMDB
-        If(!$IMDBMovieInfo){
-            $IMDBMovieInfo = Get-ImdbTitle -Title $MovieTitleCleaned -Year $year -Api $OMDBAPI -ErrorAction SilentlyContinue
-        }
-
-        #If no results try the title with no special charaters search against IMDB
-        If(!$IMDBMovieInfo -and $MovieTitleNoSpecialChar){
-            $IMDBMovieInfo = Get-ImdbTitle -Title $MovieTitleNoSpecialChar -Year $year -Api $OMDBAPI -ErrorAction SilentlyContinue
-        }
-
-        #If no results try the converted title search against IMDB
-        If(!$IMDBMovieInfo -and $MovieTitleConvertedToNum){
-            $IMDBMovieInfo = Get-ImdbTitle -Title $MovieTitleConvertedToNum -Year $year -Api $OMDBAPI -ErrorAction SilentlyContinue
-        }
-
-        #If no results try the converted title search against IMDB
-        If(!$IMDBMovieInfo -and $MovieTitleConvertedToChar){
-            $IMDBMovieInfo = Get-ImdbTitle -Title $MovieTitleConvertedToChar -Year $year -Api $OMDBAPI -ErrorAction SilentlyContinue
-        }
-
-        #Has a match been found on IMDB?
-        If($IMDBMovieInfo){
-            $NoSpaceIMDBTitle = ($IMDBMovieInfo.Title -replace '[\W]', '').ToLower()
-            Write-Host ("...IMDB movie titled [{0}] with year [{1}] was found" -f $IMDBMovieInfo.Title,[string](Get-Date $IMDBMovieInfo.Released -Format yyyy -ErrorAction SilentlyContinue)) -ForegroundColor DarkGray
-        }
-        Else{
-            Write-Host ("...IMDB movie titled [{0}] with year [{1}] was not found" -f $MovieTitleCleaned,$year) -ForegroundColor DarkGray
-        }
-        
-        #TMDB SEARCH....
-        #====================================
-        Write-Host ("   Searching for movie [{0}] with year [{1}] in TMDB..." -f $MovieTitleCleaned,$year) -ForegroundColor Gray
-        
-        #first check normal title against TMDB
-        $TMDBMovieInfo = Find-TMDBItem -Type Movie -SearchAction ByType -Title $MovieTitle -Year $year -ApiKey $TMDBAPI -SelectFirst -ErrorAction SilentlyContinue
-
-        #If no results try the title with no special charaters search against TMDB
-        If(!$TMDBMovieInfo){
-            $TMDBMovieInfo = Find-TMDBItem -Type Movie -SearchAction ByType -Title $MovieTitleCleaned -Year $year -ApiKey $TMDBAPI -SelectFirst -ErrorAction SilentlyContinue
-        }
-
-        #If no results try the title with no special charaters search against TMDB
-        If(!$TMDBMovieInfo -and $MovieTitleNoSpecialChar){
-            $TMDBMovieInfo = Find-TMDBItem -Type Movie -SearchAction ByType -Title $MovieTitleNoSpecialChar -Year $year -ApiKey $TMDBAPI -SelectFirst -ErrorAction SilentlyContinue
-        }
-
-        #If  no results try the converted title search against TMDB
-        If(!$TMDBMovieInfo -and $MovieTitleConvertedToChar){
-            $TMDBMovieInfo = Find-TMDBItem -Type Movie -SearchAction ByType -Title $MovieTitleConvertedToChar -Year $year -ApiKey $TMDBAPI -SelectFirst -ErrorAction SilentlyContinue
-        }
-        
-        #If no results try the converted title search against TMDB
-        If(!$TMDBMovieInfo -and $MovieTitleConvertedToNum){
-            $TMDBMovieInfo = Find-TMDBItem -Type Movie -SearchAction ByType -Title $MovieTitleConvertedToNum -Year $year -ApiKey $TMDBAPI -SelectFirst -ErrorAction SilentlyContinue
-        }
-        
-        #Has a match been found on TMDB?
-        If($TMDBMovieInfo){
-            $NoSpaceTMDBTitle = ($TMDBMovieInfo.Title -replace '[\W]', '').ToLower()
-            Write-Host ("...TMDB movie titled [{0}] with year [{1}] was found" -f $TMDBMovieInfo.Title,[string](Get-Date $TMDBMovieInfo.ReleaseDate -Format yyyy -ErrorAction SilentlyContinue)) -ForegroundColor DarkGray
-        }
-        Else{
-            Write-Host ("...TMDB movie titled [{0}] with year [{1}] was not found" -f $MovieTitleCleaned,$year) -ForegroundColor DarkGray
-        }
-
-        $SearchYear = $year
-    }
-    Else
-    {      
-
-        #IMDB SEARCH....
-        #====================================
-        Write-Host ("   Searching for movie [{0}] with year [{1}] in IMDB..." -f $MovieTitleCleaned,$year) -ForegroundColor Gray
-
-        #first check normal title against TMDB
-        $IMDBMovieInfo = Get-ImdbTitle -Title $MovieTitleCleaned -Api $OMDBAPI -ErrorAction SilentlyContinue
-        
-        #If no results try the title with no special charaters search against IMDB
-        If(!$IMDBMovieInfo){
-            $IMDBMovieInfo = Get-ImdbTitle -Title $MovieTitleCleaned -Api $OMDBAPI -ErrorAction SilentlyContinue
-        }
-
-        #If no results try the title with no special charaters search against IMDB
-        If(!$IMDBMovieInfo -and $MovieTitleNoSpecialChar){
-            $IMDBMovieInfo = Get-ImdbTitle -Title $MovieTitleNoSpecialChar -Api $OMDBAPI -ErrorAction SilentlyContinue
-        }
-
-        #If no results try the converted title search against IMDB
-        If(!$IMDBMovieInfo -and $MovieTitleConvertedToNum){
-            $IMDBMovieInfo = Get-ImdbTitle -Title $MovieTitleConvertedToNum -Api $OMDBAPI -ErrorAction SilentlyContinue
-        }
-
-        #If no results try the converted title search against IMDB
-        If(!$IMDBMovieInfo -and $MovieTitleConvertedToChar){
-            $IMDBMovieInfo = Get-ImdbTitle -Title $MovieTitleConvertedToChar -Api $OMDBAPI -ErrorAction SilentlyContinue
-        }
-
-        #Has a match been found on IMDB?
-        If($IMDBMovieInfo){
-            $NoSpaceIMDBTitle = ($IMDBMovieInfo.Title -replace '[\W]', '').ToLower()
-            Write-Host ("...IMDB movie titled [{0}] was found" -f $IMDBMovieInfo.Title) -ForegroundColor DarkGray
-        }
-        Else{
-            Write-Host ("...IMDB movie titled [{0}] was not found" -f $MovieTitleCleaned) -ForegroundColor DarkGray
-        }
-        
-        #TMDB SEARCH....
-        #====================================
-        Write-Host ("   Searching for movie [{0}] with year [{1}] in TMDB..." -f $MovieTitleCleaned,$year) -ForegroundColor Gray
-        #first check normal title against TMDB
-        $TMDBMovieInfo = Find-TMDBItem -Type Movie -SearchAction ByType -Title $MovieTitleCleaned -ApiKey $TMDBAPI -SelectFirst -ErrorAction SilentlyContinue
-
-        #If no results try the title with no special charaters search against TMDB
-        If(!$TMDBMovieInfo){
-            $TMDBMovieInfo = Find-TMDBItem -Type Movie -SearchAction ByType -Title $MovieTitleCleaned -ApiKey $TMDBAPI -SelectFirst -ErrorAction SilentlyContinue
-        }
-
-        #If no results try the title with no special charaters search against IMDB
-        If(!$TMDBMovieInfo -and $MovieTitleNoSpecialChar){
-            $TMDBMovieInfo = Find-TMDBItem -Type Movie -SearchAction ByType -Title $MovieTitleNoSpecialChar -Year $year -ApiKey $TMDBAPI -SelectFirst -ErrorAction SilentlyContinue
-        }
-
-        #If no results try the title with converted numbers to words search against TMDB
-        If(!$TMDBMovieInfo -and $MovieTitleConvertedToChar){
-            $TMDBMovieInfo = Find-TMDBItem -Type Movie -SearchAction ByType -Title $MovieTitleConvertedToChar -ApiKey $TMDBAPI -SelectFirst -ErrorAction SilentlyContinue
-        }
-        
-        #If no results try the title to spelled numbers converted to number digits search against TMDB
-        If(!$TMDBMovieInfo -and $MovieTitleConvertedToNum){
-            $TMDBMovieInfo = Find-TMDBItem -Type Movie -SearchAction ByType -Title $MovieTitleConvertedToNum -ApiKey $TMDBAPI -SelectFirst -ErrorAction SilentlyContinue
-        }
-        
-        #Has a match been found on TMDB?
-        If($TMDBMovieInfo){
-            $NoSpaceTMDBTitle = ($TMDBMovieInfo.Title -replace '[\W]', '').ToLower()
-            Write-Host ("...TMDB movie titled [{0}] was found" -f $TMDBMovieInfo.Title) -ForegroundColor DarkGray
-        }
-        Else{
-            Write-Host ("...TMDB movie titled [{0}] was not found" -f $MovieTitleCleaned) -ForegroundColor DarkGray
-        }
-
-        If($TMDBMovieInfo.ReleaseDate -or $IMDBMovieInfo.Released){$SearchYear = [string](Get-Date $TMDBMovieInfo.ReleaseDate -Format yyyy -ErrorAction SilentlyContinue)}Else{$SearchYear = $null}
+    If($yearfound){
+        $SearchYear = $Year
+        $ParamHash = @{Year = $Year}
     }
 
-    #was there a movie in IMDB and TMDB?
-    If($IMDBMovieInfo -and $TMDBMovieInfo){
-        #format the titles so that there are no special characters or spaces to ensure it a good match
-        #$NoSpaceIMDBTitle = ($IMDBMovieInfo.Title -replace '[\W]', '').ToLower()
-        #$NoSpaceTMDBTitle = ($TMDBMovieInfo.Title -replace '[\W]', '').ToLower()
+    #Does the movie already exist in Radarr?
+    $FoundRadarrMovieByTitle = $Global:RadarrMovies | Where {($_.title -eq $MovieTitle)} 
 
-        #if both IMDB and TMDB information are different log it and go to next
-        If($NoSpaceIMDBTitle -ne $NoSpaceTMDBTitle){
+    #or is ther a movie path in Radarr with that name
+    $FoundRadarrMovieByPath = $Global:RadarrMovies | Where {$_.path -eq $Movie.FullName}
 
-            Write-Host ("Movie information does not match from IMDB [{0}] and TMDB [{1}]. Unable to add to Radarr, skipping..." -f $IMDBMovieInfo.Title,$TMDBMovieInfo.Title) -ForegroundColor Red
-            $UnmatchedMovie = New-Object System.Object
-            $UnmatchedMovie | Add-Member -Type NoteProperty -Name SearchName -Value $MovieTitleCleaned
-            $UnmatchedMovie | Add-Member -Type NoteProperty -Name SearchYear -Value $SearchYear
-            $UnmatchedMovie | Add-Member -Type NoteProperty -Name ImdbID -Value $IMDBMovieInfo.imdbID
-            $UnmatchedMovie | Add-Member -Type NoteProperty -Name ImdbTitle -Value $IMDBMovieInfo.title
-            $UnmatchedMovie | Add-Member -Type NoteProperty -Name ImdbYear -Value $IMDBMovieInfo.year
-            $UnmatchedMovie | Add-Member -Type NoteProperty -Name TmdbID -Value $TMDBMovieInfo.tmdbID
-            $UnmatchedMovie | Add-Member -Type NoteProperty -Name TmdbTitle -Value $TMDBMovieInfo.Title
-            
-            #add to another array for reporting
-            $Global:UnmatchedMovieReport += $UnmatchedMovie
-            $AddMovietoRadarr = $false
-
-            Start-Sleep 1
-            Continue
-            #break
-        }
-        Else{
-            Write-Host ("Movie information for [{0}] was matched from both TMDB and IMDB." -f $IMDBMovieInfo.Title) -ForegroundColor Green
+    # DETERMINE ONLINE SEARCH NEEDED
+    # ==============================
+    # If set to true, validate the movie exists in radar and that everything is valid
+    # If set to false, search IMDB / TMDB and compare it to Radarr's movie
+    If($FindMissingOnly){
+        
+        #If title and path doesn't exist; do a search and add to Radarr
+        If(!$FoundRadarrMovieByTitle -and !$FoundRadarrMovieByPath){
+            Write-Host ("No Movie title and path [{0}] was found in Radarr..." -f $Movie.Name) -ForegroundColor Gray
             $AddMovietoRadarr = $true
+        }
+
+        #If title or path not found; do a search and update radarr
+        ElseIf(!$FoundRadarrMovieByTitle -or !$FoundRadarrMovieByPath){
+            Write-Host ("No Movie title or path [{0}] was found in Radarr..." -f $Movie.Name) -ForegroundColor Gray
+            $UpdateMovieTitleinRadarr = $true
+        }
+
+        #or if Title results are not equal; do a search and update radarr
+        ElseIf($FoundRadarrMovieByTitle.title -ne $FoundRadarrMovieByPath.title){
+            Write-Host ("Movie TITLE when search by title [{0}] does not match movie TITLE when searched by path [{1}] was found in Radarr..." -f $FoundRadarrMovieByTitle.title,$FoundRadarrMovieByPath.title) -ForegroundColor Gray
+            $UpdateMovieTitleinRadarr = $true
+        }
+
+        #or if path results are not equal; do a search and update radarr
+        ElseIf($FoundRadarrMovieByTitle.Path -ne $FoundRadarrMovieByPath.Path){
+            Write-Host ("Movie PATH when search by title [{0}] does not match movie PATH when searched by path [{1}] was found in Radarr..." -f $FoundRadarrMovieByTitle.Path,$FoundRadarrMovieByPath.Path) -ForegroundColor Gray
+            $UpdateMoviePathinRadarr = $true
+        }
+
+        # After all checks, title and path are the same then there is no need to search online (or use up a OMDB api request)
+        Else{
+            $SearchForMovie = $false
         }
     }
     Else{
-        #if no IMDB and TMDB information was found log it and go to next
-        Write-Host ("Not enough information was found for [{0}]. Unable to add to Radarr." -f $MovieTitleCleaned) -ForegroundColor Red
-        $NoMovieInfo = New-Object System.Object
-        $NoMovieInfo | Add-Member -Type NoteProperty -Name SearchName -Value $MovieTitleCleaned
-        $NoMovieInfo | Add-Member -Type NoteProperty -Name SearchYear -Value $SearchYear
-        $NoMovieInfo | Add-Member -Type NoteProperty -Name ImdbID -Value $IMDBMovieInfo.imdbID
-        $NoMovieInfo | Add-Member -Type NoteProperty -Name TmdbID -Value $TMDBMovieInfo.tmdbID
-        #add to another array for reporting
-        $Global:NoMovieInfoReport += $NoMovieInfo
-        $AddMovietoRadarr = $false
-
-        Start-Sleep 1
-        Continue
-        #break
+        #since we are forcing a search for all before 
+        $SearchForMovie = $true
     }
 
-    #replace movie titles that have a - with :
-    #$RealMovieName = $MovieTitle.replace(" -",":")
-    $RealMovieName = $MovieTitleCleaned
-
-    #now determine if radarr has a matching movie based on IMDB and its path
-    $ImdbInRadarr = $Global:RadarrMovies | Where {($_.imdbId -eq $IMDBMovieInfo.imdbID) -and ($_.tmdbId -eq $TMDBMovieInfo.tmdbID)}
-    $PathInRadarr = $Global:RadarrMovies | Where {$_.path -eq $Movie.FullName}
-    
-    If($ImdbInRadarr -or $PathInRadarr){
-        $AddMovietoRadarr = $false
+    # DO SEARCH IF REQUIRED
+    # =====================
+    # if we need to search for a movie online
+    If($SearchForMovie){
+        #search for movie on imdb and tmdb
+        $MovieInfo = Search-MovieTitle -Title $MovieTitle -AlternateTitles ($MovieTitleCleaned,$MovieTitleNoSpecialChar,$MovieTitleAllSpecialChar,$MovieTitleNoSpecialSpaces,$MovieTitleConvertedToNum,$MovieTitleConvertedToChar) @ParamHash -IMDBApiKey $OMDBAPI -TMDBApiKey $TMDBAPI
         
-        #Compare imdb in search vs Radarr imdb is path exists in Radarr
-        #if its the wrong imdb add it the report. FUTURE is to fix it
-        If($PathInRadarr -and ($PathInRadarr.imdbID -ne $IMDBMovieInfo.imdbID) ){
-            Write-Host ("Movie [{0}] name is incorrect; removing from Radarr to reprocess..." -f $RealMovieName) -ForegroundColor Red
-            Write-Host ("   Actual Name: {0}" -f $IMDBMovieInfo.Title)
-            Write-Host ("   Actual Imdb: {0}" -f $IMDBMovieInfo.imdbId)
-            Write-Host ("   Radarr Name: {0}" -f $PathInRadarr.title)
-            Write-Host ("   Radarr Imdb: {0}" -f $PathInRadarr.imdbId)
+        #did we fins a movie online that matches the title
+        If($MovieInfo){
+            # Now search Radarr for a matching movie based on IMDB and TMDB
+            $FoundRadarrMovieByIMDB = $Global:RadarrMovies | Where {($_.imdbId -eq $MovieInfo.imdbID) -and ($_.tmdbId -eq $MovieInfo.tmdbID)}
 
-            $deleteMovieArgs = @{Headers = @{"X-Api-Key" = $radarrAPIkey}
-                    URI = "http://${radarrURL}:${radarrPort}/api/movie/$($PathInRadarr.ID)"
-                    Method = "Delete"
+            #If IMDB title and radarr title found, determine a match
+            If($FoundRadarrMovieByIMDB -and $FoundRadarrMovieByTitle){
+
+                # if both titles don'y match, update radarr
+                If($MovieInfo.Title -notmatch $FoundRadarrMovieByIMDB.Title){
+                    $UpdateMovieinRadarr = $true
+                }
+                Else{
+                    $AddMovietoRadarr = $false
+                }
             }
-
-            If(!$StatsOnly){Invoke-WebRequest @deleteMovieArgs | Out-Null}
-            Start-sleep 3
-            $AddMovietoRadarr = $true
-        }
-        #since both IMDB matched, check its video path to ensure its that right video
-        #if its the wrong path add it the report. FUTURE is to fix it
-        ElseIf("$($ImdbInRadarr.Path)" -ne "$($Movie.FullName)"){
-            Write-Host ("Movie [{0}] path is incorrect; updating Radarr's path..." -f $RealMovieName) -ForegroundColor Red
-            Write-Host ("   Actual Path: {0}" -f $Movie.FullName) -ForegroundColor Gray
-            Write-Host ("   Radarr Path: {0}" -f $ImdbInRadarr.Path) -ForegroundColor Gray
-
-            $WrongMovie = New-Object System.Object
-            $WrongMovie | Add-Member -Type NoteProperty -Name RadarrTitle -Value $ImdbInRadarr.title 
-            $WrongMovie | Add-Member -Type NoteProperty -Name RadarrYear -Value $ImdbInRadarr.year
-            $WrongMovie | Add-Member -Type NoteProperty -Name RadarrPath -Value $ImdbInRadarr.Path
-            $WrongMovie | Add-Member -Type NoteProperty -Name RadarrfolderName -Value $ImdbInRadarr.folderName
-            $WrongMovie | Add-Member -Type NoteProperty -Name RadarrID -Value $ImdbInRadarr.ID
-            $WrongMovie | Add-Member -Type NoteProperty -Name RadarrIMDB -Value $ImdbInRadarr.imdbId
-            $WrongMovie | Add-Member -Type NoteProperty -Name RadarrURL -Value ('http://'+ $radarrURL + ':' + $radarrPort +'/movie/' + $ImdbInRadarr.titleSlug)
-            $WrongMovie | Add-Member -Type NoteProperty -Name ActualPath -Value $Movie.FullName
-            #add to another array for reporting
-            $Global:WrongMovieReport += $WrongMovie
-
-            Write-Host ("Grabbing {0} from Radarr, using ID [{1}]..." -f $ImdbInRadarr.title,$ImdbInRadarr.ID) -ForegroundColor Gray
-            $RadarrGetMovieID = @{Headers = @{"X-Api-Key" = $radarrAPIkey}
-                            URI = "http://${radarrURL}:${radarrPort}/api/movie/$($ImdbInRadarr.ID)"
-                            Method = "Get"
-                        }
-                        $radarrGetIDRequest = Invoke-WebRequest @RadarrGetMovieID
-                        $radarrMovieID = $radarrGetIDRequest.Content | ConvertFrom-Json
-            
-            #replace the value
-            $radarrMovieID.folderName=$Movie.FullName
-            $radarrMovieID.path=$Movie.FullName 
-            $radarrMovieID.PSObject.Properties.Remove('movieFile')  
-            #convert PSObject back into JSON format
-            $body = $radarrMovieID | ConvertTo-Json #| % { [System.Text.RegularExpressions.Regex]::Unescape($_) }
-
-            $RadarrUpdateMovieID = @{Headers = @{"X-Api-Key" = $radarrAPIkey}
-                        URI = "http://${radarrURL}:${radarrPort}/api/movie/$($ImdbInRadarr.ID)"
-                        Method = "Put"
-                    }
-                    If(!$StatsOnly){Invoke-WebRequest @RadarrUpdateMovieID -Body $body | Out-Null}
-
-            Start-Sleep 1
-            #Break
         }
         Else{
-            Write-Host ("Movie [{0}] was already found in Radarr's database" -f $RealMovieName) -ForegroundColor Green
-            $ExistingMovie = New-Object System.Object
-            $ExistingMovie | Add-Member -Type NoteProperty -Name id -Value $ImdbInRadarr.id
-            $ExistingMovie | Add-Member -Type NoteProperty -Name Title -Value $ImdbInRadarr.title 
-            $ExistingMovie | Add-Member -Type NoteProperty -Name year -Value $ImdbInRadarr.year
-            $ExistingMovie | Add-Member -Type NoteProperty -Name RadarrURL -Value ('http://'+ $radarrURL + ':' + $radarrPort +'/movie/' + $ImdbInRadarr.titleSlug)
-            #add to another array for reporting
-            $Global:ExistingMovieReport += $ExistingMovie
+            Write-Host ("Movie title [{0}] was not found online unable to add to Radarr..." -f $MovieTitle) -ForegroundColor Yellow
+            $AddMovietoRadarr = $false
         }
     }
     Else{
-        Write-Host ("Movie [{0}] was not found in Radarr's database, adding to Radarr..." -f $RealMovieName) -ForegroundColor Yellow
+        Write-Host ("No search is required for movie title [{0}], skipping..." -f $MovieTitle) -ForegroundColor Yellow
+        $AddMovietoRadarr = $false
+    }
+
+
+
+    # ADD TO RADAAR IF SET
+    # =====================
+    If($UpdateMoviePathinRadarr){
+        $Global:UpdatedMovieReport += $FoundRadarrMovieByTitle | Update-RadarrMoviePath -ActualPath $Movie.FullName -Api $radarrAPIkey -Report
+       
+    }
+
+    If($UpdateMovieTitleinRadarr){
+        $Global:RemovedMovieReport += $FoundRadarrMovieByTitle | Remove-RadarrMovie -Api $radarrAPIkey -Report
+        $Global:RemovedMovieReport += $FoundRadarrMovieByPath | Remove-RadarrMovie -Api $radarrAPIkey -Report
         $AddMovietoRadarr = $true
     }
 
-
-    If($AddMovietoRadarr)
-    {
-        Write-Host ("Processing details for movie title [{0}]..." -f $IMDBMovieInfo.Title)
-        $Regex = "[^{\p{L}\p{Nd}\'}]+"
-        [string]$actualName = $IMDBMovieInfo.Title
-        [string]$sortName = ($IMDBMovieInfo.Title).ToLower()
-        [string]$cleanName = (($IMDBMovieInfo.Title) -replace $Regex,"").Trim().ToLower()
-        [string]$ActualYear = $IMDBMovieInfo.Year
-        [string]$imdbID = $IMDBMovieInfo.imdbID
-        #[string]$imdbID = ($IMDBMovieInfo.imdbID).substring(2,($IMDBMovieInfo.imdbID).length-2)
-        [int32]$tmdbID = $TMDBMovieInfo.tmdbID
-        [string]$Image = $TMDBMovieInfo.Poster
-        [string]$simpleTitle = (($IMDBMovieInfo.Title).replace("'","") -replace $Regex,"-").Trim().ToLower()
-        [string]$titleSlug = $simpleTitle + "-" + $TMDBMovieInfo.tmdbID
-        $MovieRootPath = $Movie.FullName
-
-        #Write-Host ("Adding movie [{0}] to Radarr database..." -f $actualName) -ForegroundColor Gray
-        Write-Host ("   Path: {0}" -f $MovieRootPath) -ForegroundColor Gray
-        Write-Host ("   Imdb: {0}" -f $imdbID) -ForegroundColor Gray
-        Write-Host ("   Tmdb: {0}" -f $tmdbID) -ForegroundColor Gray
-        Write-Host ("   Slug: {0}" -f $titleSlug) -ForegroundColor Gray
-        Write-Host ("   Year: {0}" -f $ActualYear) -ForegroundColor Gray
-
-        $Body = @{ title=$actualName;
-            sortTitle=$sortName;
-            cleanTitle=$cleanName;
-            qualityProfileId="1";
-            year=$ActualYear;
-            tmdbid=$tmdbID;
-            imdbid=$imdbID;
-            titleslug=$titleSlug;
-            monitored="true";
-            path=$MovieRootPath;
-            addOptions=@{
-                searchForMovie="true"
-            };
-            images=@( @{
-                covertype="poster";
-                url=$Image
-            } );
-        }
-        $BodyObj = ConvertTo-Json -InputObject $Body #| % { [System.Text.RegularExpressions.Regex]::Unescape($_) }
-        #$BodyArray = ConvertFrom-Json -InputObject $BodyObj
-
-        $RadarrPostArgs = @{Headers = @{"X-Api-Key" = $radarrAPIkey}
-                        URI = "http://${radarrURL}:${radarrPort}/api/movie"
-                        Method = "Post"
-                }
-        try
-        {
-            If(!$StatsOnly){Invoke-WebRequest @RadarrPostArgs -Body $BodyObj | Out-Null}
-
-            $AddedMovie = New-Object System.Object
-            $AddedMovie | Add-Member -Type NoteProperty -Name Title -Value $actualName
-            $AddedMovie | Add-Member -Type NoteProperty -Name Year -Value $ActualYear
-            $AddedMovie | Add-Member -Type NoteProperty -Name IMDB -Value $imdbID
-            $AddedMovie | Add-Member -Type NoteProperty -Name TMDB -Value $tmdbID
-            $AddedMovie | Add-Member -Type NoteProperty -Name TitleSlug -Value $titleslug
-            $AddedMovie | Add-Member -Type NoteProperty -Name FolderPath -Value $MovieRootPath
-            $AddedMovie | Add-Member -Type NoteProperty -Name RadarrPath -Value ('http://' + $radarrURL + ':' + $radarrPort + '/movie/' + $titleslug)
-            #add to another array for reporting
-            $Global:AddedMovieReport += $AddedMovie
-        }
-        catch {
-            Write-Error -ErrorRecord $_
-            $FailedMovie = New-Object System.Object
-            $FailedMovie | Add-Member -Type NoteProperty -Name Title -Value $actualName
-            $FailedMovie | Add-Member -Type NoteProperty -Name Year -Value $ActualYear
-            $FailedMovie | Add-Member -Type NoteProperty -Name IMDB -Value $imdbID
-            $FailedMovie | Add-Member -Type NoteProperty -Name TMDB -Value $tmdbID
-            $FailedMovie | Add-Member -Type NoteProperty -Name TitleSlug -Value $titleslug
-            $FailedMovie | Add-Member -Type NoteProperty -Name FolderPath -Value $MovieRootPath
-            $FailedMovie | Add-Member -Type NoteProperty -Name RadarrPath -Value ('http://' + $radarrURL + ':' + $radarrPort + '/movie/' + $titleslug)
-            #add to another array for reporting
-            $Global:FailedMovieReport += $FailedMovie
-            Break
-        }
-
-        start-sleep 3
+    If($UpdateMovieinRadarr){
+        $Global:RemovedMovieReport += $FoundRadarrMovieByTitle | Remove-RadarrMovie -Api $radarrAPIkey -Report
+        $AddMovietoRadarr = $true
     }
+
+    If($MovieInfo -and $AddMovietoRadarr){
+        $Global:AddedMovieReport += $MovieInfo | Add-RadarrMovie -Path $Movie.FullName -Api $radarrAPIkey -SearchAfterImport -Report
+    }
+    start-sleep 3
 }
 
-#build radarr list
+<#build radarr list
 Write-Host "Grabbing all movies in Radarr again..."
 $RadarrGetArgs = @{Headers = @{"X-Api-Key" = $radarrAPIkey}
                 URI = "http://${radarrURL}:${radarrPort}/api/movie"
@@ -673,10 +635,11 @@ $RadarrGetArgs = @{Headers = @{"X-Api-Key" = $radarrAPIkey}
             }
 $radarrWebRequest = Invoke-WebRequest @RadarrGetArgs
 $Global:RadarrMovies = $radarrWebRequest.Content | ConvertFrom-Json
+#>
+Write-Host ("Updated Movies   :") -ForegroundColor Gray -NoNewline
+    Write-Host (" {0}" -f $Global:UpdatedMovieReport.Count)
+Write-Host ("Removed Movies   :") -ForegroundColor Gray -NoNewline
+    Write-Host (" {0}" -f $Global:RemovedMovieReport.Count)
+Write-Host ("Added Movies      :") -ForegroundColor Gray -NoNewline
+            Write-Host (" {0}" -f $Global:AddedMovieReport.Count)
 
-Write-Host ("Existing Movies   : {0}" -f $Global:ExistingMovieReport.Count)
-Write-Host ("Unmatched Movies  : {0}" -f $Global:UnmatchedMovieReport.Count)
-Write-Host ("Wrong Movies      : {0}" -f $Global:WrongMovieReport.Count)
-Write-Host ("Added Movies      : {0}" -f $Global:AddedMovieReport.Count)
-Write-Host ("Failed Movies     : {0}" -f $Global:FailedMovieReport.Count)
-Write-Host ("No Info for Movie : {0}" -f $Global:NoMovieInfoReport.Count)

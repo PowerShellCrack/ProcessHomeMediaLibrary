@@ -1,0 +1,53 @@
+<?xml version="1.0"?>	
+<RadarrAutomation>
+	<GlobalSettings>
+		<OMDBAPI></OMDBAPI>
+		<TMDBAPI></TMDBAPI>
+		<!-- https://api.themoviedb.org/3/movie/550?api_key=798cb1c0648d68fc43ab0c94dac906e9 -->
+		<CheckStatusOnly>False</CheckStatusOnly> <!-- If set to true this does not do any action, it will oly output statics. Great for testing -->
+		<FindMissingOnly>True</FindMissingOnly> <!-- if using OMDBAPI free key there is a 1000 dayt limit. This may help find only missing ones -->
+		<UpdateNfoData>False</UpdateNfoData>
+		<UpdateMovieSeriesOnly>False</UpdateMovieSeriesOnly><!-- Ooly updates movies that are in an folder names  (search using like operator)-->
+		
+		<UpdateMovieSeriesOnly>False</UpdateMovieSeriesOnly><!-- Only update movies that are in an adittional series subfolder (search using match operator)-->
+		<MovieSeriesFolders>
+			<Folder>Collection</Folder>
+			<Folder>Anthology</Folder>
+		</MovieSeriesFolders>
+		
+		<FilterMovieSubFolders> <!-- Always filter these folders (search using match operator) -->
+			<Folder>Screeners</Folder>
+			<Folder>Requests</Folder>
+			<Folder>Subs</Folder>
+			<Folder>Samples</Folder>
+			<Folder>Trailers</Folder>
+			<Folder>Pre-Roll</Folder>
+		</FilterMovieSubFolders>
+		
+		<MoviesRootPath>M:\Movies</MoviesRootPath>
+		
+		<UseRecentStoredIMDBDataDays>0</UseRecentStoredIMDBDataDays> <!-- For Future use: Stores data from IMDB for local use. Set to Zero (0) to disable.-->
+		<UseRecentStoredTMDBDataDays>0</UseRecentStoredTMDBDataDays> <!-- Future use: Stores data from TMDB for local use. Set to Zero (0) to disable.-->
+	</GlobalSettings>
+	
+	<RadarrConfig>
+		<ExternalURL></ExternalURL>
+		<InternalURL>localhost</InternalURL>
+		<Port>7878</Port>
+		<EnableSSL>False</EnableSSL>
+		<!--
+			To get api key, open browser to http://localhost:7878/settings/general and copy API key here
+		-->
+		<API></API>
+		<!-- Future use -->
+		<AuthenticationRequired>False</AuthenticationRequired>
+		<!--
+			To generate a secure user credential file, run in powershell: Get-Credential | Export-CliXML Creds-Radarr.xml 
+		-->
+		<Credentials></Credentials>
+	</RadarrConfig>
+	
+</RadarrAutomation>
+
+
+	
